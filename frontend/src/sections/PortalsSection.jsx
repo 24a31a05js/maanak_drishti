@@ -16,11 +16,11 @@ export default function PortalsSection() {
   ];
 
   const consumerFeatures = [
-    'Product label information.',
-    'Understandable compliance results.',
-    'Potential missing-declaration explanations.',
-    'Label-reading guidance.',
-    'Compliance awareness.',
+    'Camera scan and product label upload.',
+    'Optical extraction of statutory Rule 6 declarations.',
+    'Plain-language label explanation & legal compliance.',
+    'Age-wise suitability assessment (0–5 to 90–95 years).',
+    'Report suspected violations directly to department.',
   ];
 
   return (
@@ -139,15 +139,15 @@ export default function PortalsSection() {
             <div className="pt-4 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => navigate('/consumer/auth')}
-                className="w-full py-4 px-6 rounded-xl font-bold text-base transition-all duration-200 flex items-center justify-center gap-2 bg-slate-900 hover:bg-teal-600 text-white shadow-md hover:shadow-lg shadow-slate-900/10 cursor-pointer"
+                onClick={() => navigate('/consumer/dashboard')}
+                className="w-full py-4 px-6 rounded-xl font-bold text-base transition-all duration-200 flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-500 text-white shadow-md hover:shadow-lg shadow-teal-600/20 cursor-pointer"
               >
                 <span>Consumer Portal</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
-              <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 mt-2.5">
-                <Lock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Dedicated Consumer Authentication</span>
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-teal-700 font-medium mt-2.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                <span>Direct Citizen Access • No Login Required</span>
               </div>
             </div>
           </div>

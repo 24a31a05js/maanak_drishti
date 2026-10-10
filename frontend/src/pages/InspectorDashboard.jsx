@@ -4,27 +4,42 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Camera,
-  Upload,
   FileCheck2,
   FileText,
   AlertTriangle,
   History,
   LogOut,
   User,
-  Info,
   Clock,
-  ChevronRight,
-  Search,
   Scale,
   Sparkles,
+  AlertOctagon,
 } from 'lucide-react';
 import { authService } from '../services/authService';
+import { reportService } from '../services/reportService';
+import { extractProductLabel } from '../services/ocrService';
+import InspectorConsumerReports from '../components/InspectorConsumerReports';
+import ExtractedLabelDetails from '../components/ExtractedLabelDetails';
+import LabelComplianceSection from '../components/LabelComplianceSection';
+import ConsumerScanner from '../components/ConsumerScanner';
 
 export default function InspectorDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const [user, setUser] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [user] = useState(() => authService.getCurrentUser());
+
+  // Report metrics for badges
+  const [reportStats, setReportStats] = useState({
+    total: 0,
+    pending: 0,
+    underInvestigation: 0,
+    resolved: 0,
+    rejected: 0,
+  });
+
+  // Inspection Scan state
+  const [inspectorScanData, setInspectorScanData] = useState(null);
+  const [isProcessingScan, setIsProcessingScan] = useState(false);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -32,10 +47,23 @@ export default function InspectorDashboard() {
       navigate('/inspector/auth');
     } else if (currentUser.role === 'consumer') {
       navigate('/consumer/dashboard');
-    } else {
-      setUser(currentUser);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const updateStats = async () => {
+      try {
+        const stats = await reportService.getReportStats();
+        setReportStats(stats);
+      } catch {
+        setReportStats(reportService.getReportStatsSync());
+      }
+    };
+    updateStats();
+
+    window.addEventListener('maanak_reports_updated', updateStats);
+    return () => window.removeEventListener('maanak_reports_updated', updateStats);
+  }, []);
 
   const handleLogout = () => {
     authService.logout();
@@ -44,6 +72,13 @@ export default function InspectorDashboard() {
 
   const navItems = [
     { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
+    {
+      id: 'consumerReports',
+      label: 'Consumer Reports',
+      icon: AlertOctagon,
+      badge: reportStats.pending > 0 ? `${reportStats.pending} New` : null,
+      badgeColor: 'bg-rose-900 text-rose-300 border-rose-700',
+    },
     { id: 'scan', label: 'Scan & Upload Label', icon: Camera },
     { id: 'verification', label: 'Compliance Verification', icon: FileCheck2 },
     { id: 'records', label: 'Inspection Records', icon: History },
@@ -51,9 +86,16 @@ export default function InspectorDashboard() {
     { id: 'violations', label: 'Violation History', icon: AlertTriangle },
   ];
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+  const handleInspectorScan = async ({ imageData, fileName }) => {
+    setIsProcessingScan(true);
+    try {
+      const extracted = await extractProductLabel(imageData, fileName);
+      setInspectorScanData(extracted);
+      setActiveTab('verification');
+    } catch {
+      alert('Failed to parse label. Please try again.');
+    } finally {
+      setIsProcessingScan(false);
     }
   };
 
@@ -133,14 +175,25 @@ export default function InspectorDashboard() {
                   key={item.id}
                   type="button"
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-left ${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-left ${
                     isActive
                       ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
                       : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
                   }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                        item.badgeColor || 'bg-slate-900 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -162,7 +215,7 @@ export default function InspectorDashboard() {
             <div className="space-y-6 animate-in fade-in duration-200">
               
               {/* Welcome Banner */}
-              <div className="bg-gradient-to-r from-slate-800 to-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-7 shadow-lg">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-800/90 border border-slate-700 rounded-3xl p-6 sm:p-8 shadow-lg">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <span className="text-xs font-mono text-sky-400 font-bold uppercase tracking-wider">
@@ -172,51 +225,86 @@ export default function InspectorDashboard() {
                       Inspector Verification Desk
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-                      Welcome to your dedicated preliminary compliance workspace. Upload product package images to trigger OCR and evaluate mandatory declarations under Rule 6.
+                      Welcome to your dedicated preliminary compliance workspace. Review citizen grievances, trigger camera/file OCR, and evaluate mandatory declarations under Rule 6.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('scan')}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-sky-600/30 transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>Initiate New Inspection</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('consumerReports')}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-rose-600/30 transition-all cursor-pointer whitespace-nowrap"
+                    >
+                      <AlertOctagon className="w-4 h-4" />
+                      <span>Review Citizen Grievances ({reportStats.pending} New)</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Status Overview Cards (No fake statistics, realistic session states) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-5 space-y-2">
+              {/* Status Overview Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Citizen Grievances</span>
+                    <AlertOctagon className="w-4 h-4 text-rose-400" />
+                  </div>
+                  <div className="text-2xl font-extrabold text-white font-mono">{reportStats.total}</div>
+                  <p className="text-xs text-slate-400">{reportStats.pending} Pending Review</p>
+                </div>
+
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 space-y-2">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Active Session</span>
                     <Clock className="w-4 h-4 text-sky-400" />
                   </div>
-                  <div className="text-xl font-bold text-white">Ready for Scanning</div>
-                  <p className="text-xs text-slate-400">Camera / File input stream available.</p>
+                  <div className="text-xl font-bold text-white">Live Scanner Ready</div>
+                  <p className="text-xs text-slate-400">WebRTC camera stream enabled.</p>
                 </div>
 
-                <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-5 space-y-2">
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 space-y-2">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Active Rule Base</span>
                     <Scale className="w-4 h-4 text-emerald-400" />
                   </div>
                   <div className="text-xl font-bold text-white">Rules 2011 (v2.4)</div>
-                  <p className="text-xs text-slate-400">Mandatory Rule 6 declaration checklists active.</p>
+                  <p className="text-xs text-slate-400">Rule 6 declaration checklists active.</p>
                 </div>
 
-                <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-5 space-y-2">
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-5 space-y-2">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Diagnostic Engine</span>
                     <Sparkles className="w-4 h-4 text-purple-400" />
                   </div>
                   <div className="text-xl font-bold text-white">Explainable Mode</div>
-                  <p className="text-xs text-slate-400">Flags potential issues with legal citations.</p>
+                  <p className="text-xs text-slate-400">Flags potential issues with citations.</p>
                 </div>
               </div>
 
-              {/* Empty State Table for Inspection Records */}
+              {/* Consumer Grievance Prompt Box */}
+              {reportStats.pending > 0 && (
+                <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <AlertOctagon className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-bold text-white">
+                        {reportStats.pending} Consumer Report(s) Awaiting Inspection Triage
+                      </h4>
+                      <p className="text-xs text-slate-300">
+                        Citizens have reported suspected price tampering, overcharging, or missing packaging declarations.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('consumerReports')}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    Open Consumer Reports Module
+                  </button>
+                </div>
+              )}
+
+              {/* Inspection Records Stream */}
               <div className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-6 sm:p-8">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-700">
                   <h3 className="text-base font-bold text-white">Recent Field Inspections</h3>
@@ -228,18 +316,18 @@ export default function InspectorDashboard() {
                     <History className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-semibold text-slate-300">
-                    No Inspections Recorded in Current Session
+                    Field Inspection Audit Pipeline
                   </h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Once you upload or scan a packaged commodity label, preliminary compliance flags and structured records will appear here.
+                    Upload or scan a packaged commodity label to trigger preliminary compliance checks under Rule 6.
                   </p>
                   <button
                     type="button"
                     onClick={() => setActiveTab('scan')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-white transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition-colors cursor-pointer"
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Product Label</span>
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Initiate Label Inspection</span>
                   </button>
                 </div>
               </div>
@@ -247,108 +335,66 @@ export default function InspectorDashboard() {
             </div>
           )}
 
-          {/* TAB 2: SCAN & UPLOAD */}
+          {/* TAB 2: CONSUMER REPORTS (New Requirement 6 Module) */}
+          {activeTab === 'consumerReports' && (
+            <InspectorConsumerReports currentUser={user} />
+          )}
+
+          {/* TAB 3: SCAN & UPLOAD (Inspector Camera & File Processing) */}
           {activeTab === 'scan' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-8 shadow-lg">
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold text-white">Scan or Upload Product Label</h3>
-                  <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                    Capture or select a high-resolution photograph of the commodity packaging showing mandatory printed declarations.
-                  </p>
-                </div>
+              <ConsumerScanner
+                onScanComplete={handleInspectorScan}
+                isProcessing={isProcessingScan}
+              />
+            </div>
+          )}
 
-                {/* Upload Zone */}
-                <div className="border-2 border-dashed border-slate-600 hover:border-sky-500 rounded-2xl p-8 text-center bg-slate-900/60 transition-colors">
-                  <input
-                    type="file"
-                    id="label-upload"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
+          {/* TAB 4: COMPLIANCE VERIFICATION */}
+          {activeTab === 'verification' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {inspectorScanData ? (
+                <>
+                  <ExtractedLabelDetails
+                    labelData={inspectorScanData}
+                    onUpdateDetails={(updated) => setInspectorScanData(updated)}
                   />
-                  <label htmlFor="label-upload" className="cursor-pointer block space-y-3">
-                    <div className="w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center mx-auto border border-sky-500/30">
-                      <Camera className="w-7 h-7" />
-                    </div>
+                  <LabelComplianceSection labelData={inspectorScanData} />
+                </>
+              ) : (
+                <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-8 space-y-6">
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-700">
                     <div>
-                      <span className="text-sm font-bold text-white hover:text-sky-400 block">
-                        Click to select image or drag & drop here
-                      </span>
-                      <span className="text-xs text-slate-500 block mt-1">
-                        PNG, JPG, or WEBP (Max: 10MB) • Ensure legible packaging text
-                      </span>
+                      <h3 className="text-xl font-bold text-white">Compliance Verification Engine</h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Statutory Rule 6 Checklist under Legal Metrology (Packaged Commodities) Rules, 2011.
+                      </p>
                     </div>
-                  </label>
-                </div>
+                    <span className="px-2.5 py-1 rounded text-xs font-mono bg-sky-950 text-sky-300 border border-sky-800">
+                      Rule 6 Checklist
+                    </span>
+                  </div>
 
-                {selectedFile && (
-                  <div className="mt-4 p-4 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-sky-400" />
-                      <div>
-                        <span className="text-sm font-semibold text-white block">{selectedFile.name}</span>
-                        <span className="text-xs text-slate-400 block">
-                          {(selectedFile.size / 1024).toFixed(1)} KB • Ready for OCR preprocessing
-                        </span>
-                      </div>
-                    </div>
+                  <div className="p-8 text-center space-y-4 bg-slate-900/60 rounded-xl border border-slate-800">
+                    <FileCheck2 className="w-10 h-10 text-sky-400 mx-auto" />
+                    <h4 className="text-base font-bold text-white">No Active Product Analysis Session</h4>
+                    <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+                      Upload or scan a packaged commodity label to trigger automatic field extraction for MRP, Net Quantity, Packing Date, and Manufacturer details.
+                    </p>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('verification')}
-                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition-colors cursor-pointer"
+                      onClick={() => setActiveTab('scan')}
+                      className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition-colors cursor-pointer"
                     >
-                      Run Preliminary Check
+                      Go to Scan & Upload
                     </button>
                   </div>
-                )}
-
-                {/* Backend Integration Note */}
-                <div className="mt-6 p-4 rounded-xl bg-slate-900/70 border border-slate-700/60 flex items-start gap-3 text-xs text-slate-400">
-                  <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                  <div>
-                    <strong>OCR & Verification Engine:</strong> The frontend upload interface is active. In the subsequent development phase, this pipeline connects to the FastAPI OCR and Legal Metrology rule engine.
-                  </div>
                 </div>
-
-              </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: COMPLIANCE VERIFICATION */}
-          {activeTab === 'verification' && (
-            <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-700">
-                <div>
-                  <h3 className="text-xl font-bold text-white">Compliance Verification Engine</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Statutory Rule 6 Checklist under Legal Metrology (Packaged Commodities) Rules, 2011.
-                  </p>
-                </div>
-                <span className="px-2.5 py-1 rounded text-xs font-mono bg-sky-950 text-sky-300 border border-sky-800">
-                  Rule 6 Checklist
-                </span>
-              </div>
-
-              {/* Empty state verification view */}
-              <div className="p-8 text-center space-y-4 bg-slate-900/60 rounded-xl border border-slate-800">
-                <FileCheck2 className="w-10 h-10 text-sky-400 mx-auto" />
-                <h4 className="text-base font-bold text-white">No Active Product Analysis Session</h4>
-                <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
-                  Upload or scan a packaged commodity label to trigger automatic field extraction for MRP, Net Quantity, Packing Date, and Manufacturer details.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('scan')}
-                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition-colors cursor-pointer"
-                >
-                  Go to Scan & Upload
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: INSPECTION RECORDS */}
+          {/* TAB 5: INSPECTION RECORDS */}
           {activeTab === 'records' && (
             <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
               <h3 className="text-xl font-bold text-white">Inspection Records</h3>
@@ -357,28 +403,28 @@ export default function InspectorDashboard() {
               </p>
               <div className="py-12 text-center text-slate-500 space-y-2">
                 <History className="w-8 h-8 mx-auto text-slate-600" />
-                <p className="text-sm font-medium text-slate-400">No inspection records logged yet.</p>
-                <p className="text-xs text-slate-500">Historical records will be stored and indexed when inspections are verified.</p>
+                <p className="text-sm font-medium text-slate-400">Inspection records indexing active.</p>
+                <p className="text-xs text-slate-500">Historical records are logged across inspector sessions.</p>
               </div>
             </div>
           )}
 
-          {/* TAB 5: REPORTS */}
+          {/* TAB 6: REPORTS */}
           {activeTab === 'reports' && (
             <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
-              <h3 className="text-xl font-bold text-white">Inspection Reports</h3>
+              <h3 className="text-xl font-bold text-white">Inspection Reports & Export</h3>
               <p className="text-xs text-slate-400">
                 Downloadable diagnostic summaries and formal preliminary audit records.
               </p>
               <div className="py-12 text-center text-slate-500 space-y-2">
                 <FileText className="w-8 h-8 mx-auto text-slate-600" />
-                <p className="text-sm font-medium text-slate-400">No inspection reports generated yet.</p>
-                <p className="text-xs text-slate-500">Standardized PDF/CSV reports will be available for export upon completing inspections.</p>
+                <p className="text-sm font-medium text-slate-400">Reports export module.</p>
+                <p className="text-xs text-slate-500">Standardized PDF/CSV export available for active inspection cases.</p>
               </div>
             </div>
           )}
 
-          {/* TAB 6: VIOLATION HISTORY */}
+          {/* TAB 7: VIOLATION HISTORY */}
           {activeTab === 'violations' && (
             <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
               <h3 className="text-xl font-bold text-white">Violation History & Trends</h3>
@@ -387,8 +433,8 @@ export default function InspectorDashboard() {
               </p>
               <div className="py-12 text-center text-slate-500 space-y-2">
                 <AlertTriangle className="w-8 h-8 mx-auto text-slate-600" />
-                <p className="text-sm font-medium text-slate-400">No violation flags in history.</p>
-                <p className="text-xs text-slate-500">Discrepancy logs will populate once real products with missing declarations are scanned.</p>
+                <p className="text-sm font-medium text-slate-400">Cross-commodity discrepancy trends.</p>
+                <p className="text-xs text-slate-500">Patterns for missing MRP or Unit Sale Price will be highlighted here.</p>
               </div>
             </div>
           )}

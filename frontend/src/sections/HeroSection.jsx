@@ -1,5 +1,6 @@
 import React from 'react';
-import { ArrowRight, CheckCircle2, Tag, Scale, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, CheckCircle2, Tag, Scale, ShieldCheck, ShoppingBag } from 'lucide-react';
 
 export default function HeroSection() {
   const handleScrollTo = (e, targetId) => {
@@ -61,22 +62,30 @@ export default function HeroSection() {
               Designed for inspectors. Informative for consumers. Built for clearer compliance.
             </p>
 
-            {/* CTA Buttons: Get Started & See How It Works */}
+            {/* Prominent Dual Portal Access Buttons */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">
-              <a
-                href="#portals"
-                onClick={(e) => handleScrollTo(e, '#portals')}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-white bg-sky-600 hover:bg-sky-500 active:bg-sky-700 shadow-lg shadow-sky-600/30 transition-all duration-200 hover:-translate-y-0.5 text-center text-sm sm:text-base"
+              <Link
+                to="/consumer/dashboard"
+                className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-bold text-white bg-teal-600 hover:bg-teal-500 active:bg-teal-700 shadow-lg shadow-teal-600/30 transition-all duration-200 hover:-translate-y-0.5 text-center text-sm sm:text-base cursor-pointer"
               >
-                <span>Get Started</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
+                <ShoppingBag className="w-5 h-5 text-teal-200" />
+                <span>Consumer Portal</span>
+                <ArrowRight className="w-4 h-4 ml-0.5" />
+              </Link>
+              <Link
+                to="/inspector/auth"
+                className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500 active:bg-sky-700 shadow-lg shadow-sky-600/30 transition-all duration-200 hover:-translate-y-0.5 text-center text-sm sm:text-base cursor-pointer"
+              >
+                <ShieldCheck className="w-5 h-5 text-sky-200" />
+                <span>Inspector Portal</span>
+                <ArrowRight className="w-4 h-4 ml-0.5" />
+              </Link>
               <a
                 href="#workflow"
                 onClick={(e) => handleScrollTo(e, '#workflow')}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700 transition-all duration-200 text-center text-sm sm:text-base"
+                className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl font-semibold text-slate-300 bg-slate-800/80 hover:bg-slate-700 hover:text-white border border-slate-700 transition-all duration-200 text-center text-xs sm:text-sm"
               >
-                <span>See How It Works</span>
+                <span>How It Works</span>
               </a>
             </div>
 
